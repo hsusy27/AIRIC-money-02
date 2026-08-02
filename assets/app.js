@@ -284,6 +284,9 @@ function renderSidebar(activePage){
       </div>
     </div>
     <div class="sidebar-footer">
+      <div style="font-size:11px; color:var(--muted); line-height:1.5; padding:0 2px 4px;">
+        資料存在「這個瀏覽器＋這個網址」。請固定用同一個網址開啟，並定期匯出備份。
+      </div>
       <button class="ghost-btn" id="btnExport">匯出備份 JSON</button>
       <button class="ghost-btn" id="btnImport">匯入備份 JSON</button>
       <input type="file" id="fileImport" accept="application/json" style="display:none">

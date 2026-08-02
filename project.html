@@ -71,7 +71,71 @@
   </div>
 </div>
 
-<!-- 明細項目 新增／編輯 modal -->
+<!-- 人力費 新增／編輯 modal（薪資＋保費自動加總） -->
+<div class="modal-overlay" id="personnelModalOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="personnelModalTitle">新增人力費項目</h3>
+      <button class="modal-close" id="personnelModalClose">✕</button>
+    </div>
+    <div class="form-grid cols-2" id="personnelFormGrid">
+      <div class="form-field">
+        <label>人員姓名</label>
+        <input type="text" id="pItem" placeholder="例如：黃俊皓">
+      </div>
+      <div class="form-field">
+        <label>職稱／聘僱類別</label>
+        <input type="text" id="pRole" placeholder="例如：專任助理人員（高級）">
+      </div>
+      <div class="form-field span-2">
+        <label>聘期／薪資月份</label>
+        <input type="text" id="pPeriod" placeholder="例如：115年04月份薪資（1150401-1150831）">
+      </div>
+      <div class="form-field">
+        <label>固定每月薪資</label>
+        <input type="number" id="pBase" placeholder="0">
+      </div>
+      <div class="form-field">
+        <label>公提退（退休金）</label>
+        <input type="number" id="pPension" placeholder="0">
+      </div>
+      <div class="form-field">
+        <label>勞保</label>
+        <input type="number" id="pLabor" placeholder="0">
+      </div>
+      <div class="form-field">
+        <label>健保</label>
+        <input type="number" id="pHealth" placeholder="0">
+      </div>
+      <div class="form-field">
+        <label>職災</label>
+        <input type="number" id="pInjury" placeholder="0">
+      </div>
+      <div class="form-field">
+        <label style="color:var(--ink-soft)">系統自動加總金額</label>
+        <div class="calc-readout" id="pCalcTotal">$ 0</div>
+      </div>
+      <div class="form-field">
+        <label>申請費用（預設同加總，可調整）</label>
+        <input type="number" id="pApplied" placeholder="0">
+      </div>
+      <div class="form-field">
+        <label>實際核銷（預設同加總，可調整）</label>
+        <input type="number" id="pActual" placeholder="0">
+      </div>
+      <div class="form-field span-2">
+        <label>備註 / 核銷狀態</label>
+        <textarea id="pNote" placeholder="例如：聘任完成"></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" id="personnelBtnCancel">取消</button>
+      <button class="btn btn-primary" id="personnelBtnSave">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 雜項費用／研究設備費 新增／編輯 modal -->
 <div class="modal-overlay" id="entryModalOverlay">
   <div class="modal">
     <div class="modal-head">
@@ -80,16 +144,16 @@
     </div>
     <div class="form-grid" id="entryFormGrid">
       <div class="form-field span-2">
-        <label>費用類別</label>
-        <select id="eType"></select>
+        <label>申請單號</label>
+        <input type="text" id="eOrderNo" placeholder="例如：11416348（20260617上單）">
       </div>
       <div class="form-field span-2">
-        <label>項目 / 人員</label>
-        <input type="text" id="eItem" placeholder="例如：黃俊皓 或 課程費">
+        <label>項目名稱</label>
+        <input type="text" id="eItem" placeholder="例如：課程費 或 個人電腦">
       </div>
       <div class="form-field span-4">
         <label>說明</label>
-        <input type="text" id="eDesc" placeholder="例如：115年04月份薪資">
+        <input type="text" id="eDesc" placeholder="例如：ISO42001主導稽核員課程">
       </div>
       <div class="form-field">
         <label>單位</label>
@@ -103,9 +167,12 @@
         <label>單價</label>
         <input type="number" id="eUnitPrice" placeholder="0">
       </div>
-      <div class="form-field"></div>
       <div class="form-field">
-        <label>申請費用</label>
+        <label style="color:var(--ink-soft)">數量×單價</label>
+        <div class="calc-readout" id="eCalcTotal">$ 0</div>
+      </div>
+      <div class="form-field">
+        <label>申請費用（預設同數量×單價，可調整）</label>
         <input type="number" id="eApplied" placeholder="0">
       </div>
       <div class="form-field">
@@ -150,29 +217,51 @@ function renderAccounts(){
     const typeBlocks = PROJECT_EXPENSE_TYPES.map(t=>{
       const es = (acc.entries||[]).filter(e=>e.type===t.key);
       const tt = totals[t.key];
+      const isPersonnel = t.key==='personnel';
       const rows = es.length ? `
         <div class="table-scroll">
         <table class="entry-table">
           <thead><tr>
-            <th>項目 / 人員</th><th>說明</th><th style="text-align:right">數量</th><th style="text-align:right">單價</th>
-            <th style="text-align:right">申請費用</th><th style="text-align:right">實際核銷</th><th>備註</th><th></th>
+            ${isPersonnel ? `
+              <th>人員 / 職稱</th><th>聘期／月份</th><th style="text-align:right">固定薪資</th><th style="text-align:right">保費合計</th><th style="text-align:right">實際核銷</th><th>備註</th><th></th>
+            ` : `
+              <th>申請單號</th><th>項目名稱 / 說明</th><th style="text-align:right">數量</th><th style="text-align:right">單價</th>
+              <th style="text-align:right">申請費用</th><th style="text-align:right">實際核銷</th><th>備註</th><th></th>
+            `}
           </tr></thead>
           <tbody>
-          ${es.map(e=>`
-            <tr>
-              <td class="item-main">${e.item||''}</td>
-              <td class="item-sub">${e.desc||''}${e.unit? ` <span class="note">（${e.qty||''} ${e.unit}）</span>`:''}</td>
-              <td class="num">${e.unitPrice? fmtMoney(e.unitPrice):'—'}</td>
-              <td class="num">${e.qty||'—'}</td>
-              <td class="num">${fmtMoney(e.applied)}</td>
-              <td class="num">${fmtMoney(e.actual)}</td>
-              <td class="note">${e.note||''}</td>
-              <td class="no-print"><div class="row-actions">
-                <button class="icon-btn" onclick="openEditEntry('${acc.id}','${e.id}')">編輯</button>
-                <button class="icon-btn" onclick="removeProjectEntry('${acc.id}','${e.id}')">刪除</button>
-              </div></td>
-            </tr>
-          `).join('')}
+          ${es.map(e=>{
+            if(isPersonnel){
+              const insSum = (Number(e.pension)||0)+(Number(e.laborIns)||0)+(Number(e.healthIns)||0)+(Number(e.workInjuryIns)||0);
+              return `
+              <tr>
+                <td><div class="item-main">${e.item||''}</div>${e.role?`<div class="item-sub">${e.role}</div>`:''}</td>
+                <td class="item-sub">${e.period||''}</td>
+                <td class="num">${fmtMoney(e.baseSalary)}</td>
+                <td class="num">${fmtMoney(insSum)}</td>
+                <td class="num">${fmtMoney(e.actual)}</td>
+                <td class="note">${e.note||''}</td>
+                <td class="no-print"><div class="row-actions">
+                  <button class="icon-btn" onclick="openEditEntry('${acc.id}','${e.id}')">編輯</button>
+                  <button class="icon-btn" onclick="removeProjectEntry('${acc.id}','${e.id}')">刪除</button>
+                </div></td>
+              </tr>`;
+            }
+            return `
+              <tr>
+                <td class="note">${e.orderNo||'—'}</td>
+                <td><div class="item-main">${e.item||''}</div>${e.desc?`<div class="item-sub">${e.desc}</div>`:''}</td>
+                <td class="num">${e.qty||'—'}${e.unit?` ${e.unit}`:''}</td>
+                <td class="num">${e.unitPrice? fmtMoney(e.unitPrice):'—'}</td>
+                <td class="num">${fmtMoney(e.applied)}</td>
+                <td class="num">${fmtMoney(e.actual)}</td>
+                <td class="note">${e.note||''}</td>
+                <td class="no-print"><div class="row-actions">
+                  <button class="icon-btn" onclick="openEditEntry('${acc.id}','${e.id}')">編輯</button>
+                  <button class="icon-btn" onclick="removeProjectEntry('${acc.id}','${e.id}')">刪除</button>
+                </div></td>
+              </tr>`;
+          }).join('')}
           </tbody>
         </table>
         </div>
@@ -267,46 +356,120 @@ function removeProjectAccount(id){
   renderAccounts();
 }
 
-/* ---------- 明細項目 modal ---------- */
-function populateTypeSelect(selected){
-  document.getElementById('eType').innerHTML = PROJECT_EXPENSE_TYPES.map(t=>`<option value="${t.key}" ${t.key===selected?'selected':''}>${t.label}</option>`).join('');
-}
+/* ---------- 明細項目 modal（依費用類別分成兩種表單）---------- */
 function openAddEntry(accountId, typeKey){
-  editingEntry = { accountId, entryId:null };
-  document.getElementById('entryModalTitle').textContent = '新增明細項目';
-  populateTypeSelect(typeKey);
-  document.getElementById('eItem').value='';
-  document.getElementById('eDesc').value='';
-  document.getElementById('eUnit').value='';
-  document.getElementById('eQty').value='';
-  document.getElementById('eUnitPrice').value='';
-  document.getElementById('eApplied').value='';
-  document.getElementById('eActual').value='';
-  document.getElementById('eNote').value='';
-  document.getElementById('entryModalOverlay').classList.add('open');
+  editingEntry = { accountId, entryId:null, type:typeKey };
+  if(typeKey==='personnel'){
+    document.getElementById('personnelModalTitle').textContent = '新增人力費項目';
+    ['pItem','pRole','pPeriod','pBase','pPension','pLabor','pHealth','pInjury','pApplied','pActual','pNote'].forEach(id=> document.getElementById(id).value='');
+    updatePersonnelCalc();
+    document.getElementById('personnelModalOverlay').classList.add('open');
+  } else {
+    document.getElementById('entryModalTitle').textContent = typeKey==='equipment' ? '新增研究設備費項目' : '新增雜項費用項目';
+    ['eOrderNo','eItem','eDesc','eUnit','eQty','eUnitPrice','eApplied','eActual','eNote'].forEach(id=> document.getElementById(id).value='');
+    updateMiscCalc();
+    document.getElementById('entryModalOverlay').classList.add('open');
+  }
 }
 function openEditEntry(accountId, entryId){
   const acc = getProjectAccounts().find(a=>a.id===accountId);
   const e = acc?.entries.find(x=>x.id===entryId);
   if(!e) return;
-  editingEntry = { accountId, entryId };
-  document.getElementById('entryModalTitle').textContent = '編輯明細項目';
-  populateTypeSelect(e.type);
-  document.getElementById('eItem').value = e.item||'';
-  document.getElementById('eDesc').value = e.desc||'';
-  document.getElementById('eUnit').value = e.unit||'';
-  document.getElementById('eQty').value = e.qty||'';
-  document.getElementById('eUnitPrice').value = e.unitPrice||'';
-  document.getElementById('eApplied').value = e.applied||'';
-  document.getElementById('eActual').value = e.actual||'';
-  document.getElementById('eNote').value = e.note||'';
-  document.getElementById('entryModalOverlay').classList.add('open');
+  editingEntry = { accountId, entryId, type:e.type };
+  if(e.type==='personnel'){
+    document.getElementById('personnelModalTitle').textContent = '編輯人力費項目';
+    document.getElementById('pItem').value = e.item||'';
+    document.getElementById('pRole').value = e.role||'';
+    document.getElementById('pPeriod').value = e.period||'';
+    document.getElementById('pBase').value = e.baseSalary||'';
+    document.getElementById('pPension').value = e.pension||'';
+    document.getElementById('pLabor').value = e.laborIns||'';
+    document.getElementById('pHealth').value = e.healthIns||'';
+    document.getElementById('pInjury').value = e.workInjuryIns||'';
+    document.getElementById('pApplied').value = e.applied||'';
+    document.getElementById('pActual').value = e.actual||'';
+    document.getElementById('pNote').value = e.note||'';
+    updatePersonnelCalc();
+    document.getElementById('personnelModalOverlay').classList.add('open');
+  } else {
+    document.getElementById('entryModalTitle').textContent = e.type==='equipment' ? '編輯研究設備費項目' : '編輯雜項費用項目';
+    document.getElementById('eOrderNo').value = e.orderNo||'';
+    document.getElementById('eItem').value = e.item||'';
+    document.getElementById('eDesc').value = e.desc||'';
+    document.getElementById('eUnit').value = e.unit||'';
+    document.getElementById('eQty').value = e.qty||'';
+    document.getElementById('eUnitPrice').value = e.unitPrice||'';
+    document.getElementById('eApplied').value = e.applied||'';
+    document.getElementById('eActual').value = e.actual||'';
+    document.getElementById('eNote').value = e.note||'';
+    updateMiscCalc();
+    document.getElementById('entryModalOverlay').classList.add('open');
+  }
 }
+
+/* 人力費：固定薪資＋公提退＋勞保＋健保＋職災 自動加總 */
+function personnelSum(){
+  return (Number(document.getElementById('pBase').value)||0)
+       + (Number(document.getElementById('pPension').value)||0)
+       + (Number(document.getElementById('pLabor').value)||0)
+       + (Number(document.getElementById('pHealth').value)||0)
+       + (Number(document.getElementById('pInjury').value)||0);
+}
+function updatePersonnelCalc(){
+  const sum = personnelSum();
+  document.getElementById('pCalcTotal').textContent = '$ ' + sum.toLocaleString('zh-TW');
+  if(!document.getElementById('pApplied').dataset.touched) document.getElementById('pApplied').value = sum || '';
+  if(!document.getElementById('pActual').dataset.touched) document.getElementById('pActual').value = sum || '';
+}
+['pBase','pPension','pLabor','pHealth','pInjury'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', updatePersonnelCalc);
+});
+['pApplied','pActual'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', (e)=>{ e.target.dataset.touched = '1'; });
+});
+document.getElementById('personnelModalClose').onclick = ()=> document.getElementById('personnelModalOverlay').classList.remove('open');
+document.getElementById('personnelBtnCancel').onclick = ()=> document.getElementById('personnelModalOverlay').classList.remove('open');
+document.getElementById('personnelBtnSave').onclick = ()=>{
+  const payload = {
+    type:'personnel',
+    item: document.getElementById('pItem').value.trim(),
+    role: document.getElementById('pRole').value.trim(),
+    period: document.getElementById('pPeriod').value.trim(),
+    baseSalary: Number(document.getElementById('pBase').value)||0,
+    pension: Number(document.getElementById('pPension').value)||0,
+    laborIns: Number(document.getElementById('pLabor').value)||0,
+    healthIns: Number(document.getElementById('pHealth').value)||0,
+    workInjuryIns: Number(document.getElementById('pInjury').value)||0,
+    applied: Number(document.getElementById('pApplied').value)||personnelSum(),
+    actual: Number(document.getElementById('pActual').value)||personnelSum(),
+    note: document.getElementById('pNote').value.trim(),
+  };
+  if(!payload.item){ alert('請輸入人員姓名'); return; }
+  if(editingEntry.entryId){ updateProjectEntry(editingEntry.accountId, editingEntry.entryId, payload); }
+  else{ addProjectEntry(editingEntry.accountId, payload); }
+  document.getElementById('pApplied').dataset.touched=''; document.getElementById('pActual').dataset.touched='';
+  document.getElementById('personnelModalOverlay').classList.remove('open');
+  renderAccounts();
+};
+
+/* 雜項費用／研究設備費：數量×單價 自動帶入申請費用 */
+function updateMiscCalc(){
+  const qty = Number(document.getElementById('eQty').value)||0;
+  const price = Number(document.getElementById('eUnitPrice').value)||0;
+  const sum = qty*price;
+  document.getElementById('eCalcTotal').textContent = '$ ' + sum.toLocaleString('zh-TW');
+  if(!document.getElementById('eApplied').dataset.touched) document.getElementById('eApplied').value = sum || '';
+}
+['eQty','eUnitPrice'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', updateMiscCalc);
+});
+document.getElementById('eApplied').addEventListener('input', (e)=>{ e.target.dataset.touched='1'; });
 document.getElementById('entryModalClose').onclick = ()=> document.getElementById('entryModalOverlay').classList.remove('open');
 document.getElementById('entryBtnCancel').onclick = ()=> document.getElementById('entryModalOverlay').classList.remove('open');
 document.getElementById('entryBtnSave').onclick = ()=>{
   const payload = {
-    type: document.getElementById('eType').value,
+    type: editingEntry.type,
+    orderNo: document.getElementById('eOrderNo').value.trim(),
     item: document.getElementById('eItem').value.trim(),
     desc: document.getElementById('eDesc').value.trim(),
     unit: document.getElementById('eUnit').value.trim(),
@@ -316,9 +479,10 @@ document.getElementById('entryBtnSave').onclick = ()=>{
     actual: Number(document.getElementById('eActual').value)||0,
     note: document.getElementById('eNote').value.trim(),
   };
-  if(!payload.item){ alert('請輸入項目／人員名稱'); return; }
+  if(!payload.item){ alert('請輸入項目名稱'); return; }
   if(editingEntry.entryId){ updateProjectEntry(editingEntry.accountId, editingEntry.entryId, payload); }
   else{ addProjectEntry(editingEntry.accountId, payload); }
+  document.getElementById('eApplied').dataset.touched='';
   document.getElementById('entryModalOverlay').classList.remove('open');
   renderAccounts();
 };
