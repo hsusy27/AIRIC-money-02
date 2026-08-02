@@ -203,6 +203,34 @@ button{ font-family:inherit; }
 .tag-owe{ background:var(--owe-bg); color:var(--owe); }
 .tag-settled{ background:var(--settled-bg); color:var(--settled); }
 .tag-pass{ background:var(--surface-sunken); color:var(--ink-soft); }
+.tag-processing{ background:var(--external-bg); color:var(--external); }
+
+/* ---------- 核銷進度歷程 ---------- */
+.log-toggle{ background:none; border:none; color:var(--center); font-size:11.5px; cursor:pointer; padding:2px 0; text-decoration:underline; text-underline-offset:2px; }
+.log-panel{ display:none; background:var(--surface-sunken); border-radius:var(--radius-sm); padding:10px 14px; margin:6px 0 4px; }
+.log-panel.open{ display:block; }
+.log-list{ display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
+.log-item{ font-size:12px; color:var(--ink-soft); display:flex; gap:8px; }
+.log-item .log-date{ font-family:var(--font-mono); color:var(--muted); flex-shrink:0; }
+.log-empty{ font-size:12px; color:var(--muted); margin-bottom:8px; }
+.log-add-row{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.log-add-row input[type=date]{ border:1px solid var(--line-strong); border-radius:var(--radius-sm); padding:6px 8px; font-size:12px; font-family:var(--font-body); background:var(--surface); }
+.log-add-row input[type=text]{ flex:1; min-width:160px; border:1px solid var(--line-strong); border-radius:var(--radius-sm); padding:6px 8px; font-size:12px; font-family:var(--font-body); background:var(--surface); }
+
+/* ---------- 研究計畫經費：明細卡片列 ---------- */
+.entry-row-card{ border-bottom:1px solid var(--line); padding:12px 0; }
+.entry-row-card:last-child{ border-bottom:none; }
+.entry-row-main{ display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; }
+.entry-row-left{ min-width:0; flex:1; }
+.entry-row-left .meta{ font-size:12px; color:var(--muted); margin-top:3px; }
+.entry-row-right{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:flex-end; }
+.entry-row-right .num{ font-family:var(--font-mono); font-size:13px; white-space:nowrap; }
+.entry-row-card .note{ font-size:12px; color:var(--muted); margin-top:6px; }
+
+/* ---------- 人力費：同一人分組 ---------- */
+.person-group{ margin-bottom:10px; border:1px solid var(--line); border-radius:var(--radius-sm); overflow:hidden; }
+.person-group-head{ background:var(--surface-sunken); padding:8px 14px; font-size:13px; font-weight:500; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; }
+.person-group-head .role{ font-weight:300; color:var(--ink-soft); font-size:12px; }
 
 .row-actions{ display:flex; gap:4px; justify-content:flex-end; }
 .icon-btn{
@@ -304,6 +332,7 @@ button{ font-family:inherit; }
   .main{ padding:22px 16px 60px; }
   .form-grid{ grid-template-columns:1fr 1fr; }
   .form-grid.cols-2{ grid-template-columns:1fr; }
+  .form-field.span-2, .form-field.span-4{ grid-column:span 2; }
   .scroll-hint{ display:flex; }
 }
 

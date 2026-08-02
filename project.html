@@ -123,8 +123,12 @@
         <label>實際核銷（預設同加總，可調整）</label>
         <input type="number" id="pActual" placeholder="0">
       </div>
+      <div class="form-field">
+        <label>核銷狀態</label>
+        <select id="pStatus"></select>
+      </div>
       <div class="form-field span-2">
-        <label>備註 / 核銷狀態</label>
+        <label>備註 / 核銷狀態說明</label>
         <textarea id="pNote" placeholder="例如：聘任完成"></textarea>
       </div>
     </div>
@@ -179,9 +183,12 @@
         <label>實際核銷</label>
         <input type="number" id="eActual" placeholder="0">
       </div>
-      <div class="form-field span-2"></div>
+      <div class="form-field span-2">
+        <label>核銷狀態</label>
+        <select id="eStatus"></select>
+      </div>
       <div class="form-field span-4">
-        <label>備註 / 核銷狀態</label>
+        <label>備註 / 核銷狀態說明</label>
         <textarea id="eNote" placeholder="例如：核銷完成（入主任）2026.07.24已付款"></textarea>
       </div>
     </div>
@@ -204,6 +211,107 @@ let editingEntry = null; // {accountId, entryId|null}
 document.getElementById('btnDownloadPdf').onclick = ()=> downloadPdf('reportRoot', `研究計畫經費_${currentMonthStr()}.pdf`);
 
 function typeLabel(k){ return PROJECT_EXPENSE_TYPES.find(t=>t.key===k)?.label || k; }
+const openLogs = new Set();
+
+function statusTag(e){
+  const s = PROJECT_STATUS.find(x=>x.key===(e.status||'applying')) || PROJECT_STATUS[0];
+  return `<span class="tag ${s.cls}">${s.label}</span>`;
+}
+function renderLogPanel(acc, e){
+  const logs = e.log||[];
+  const listHtml = logs.length
+    ? `<div class="log-list">${logs.map(l=>`<div class="log-item"><span class="log-date">${l.date||''}</span><span>${l.text||''}</span></div>`).join('')}</div>`
+    : `<div class="log-empty">尚無進度紀錄，下面可以自己新增一筆。</div>`;
+  return `
+    <div class="log-panel ${openLogs.has(e.id)?'open':''}" id="log-${e.id}">
+      ${listHtml}
+      <div class="log-add-row no-print">
+        <input type="date" id="logDate-${e.id}">
+        <input type="text" id="logText-${e.id}" placeholder="例如：已送水湳核銷、已收到撥款…">
+        <button class="btn btn-sm btn-outline" onclick="addLog('${acc.id}','${e.id}')">新增</button>
+      </div>
+    </div>
+  `;
+}
+function toggleLog(id){
+  const el = document.getElementById('log-'+id);
+  if(!el) return;
+  if(openLogs.has(id)){ openLogs.delete(id); el.classList.remove('open'); }
+  else{ openLogs.add(id); el.classList.add('open'); }
+}
+function addLog(accountId, entryId){
+  const dateEl = document.getElementById('logDate-'+entryId);
+  const textEl = document.getElementById('logText-'+entryId);
+  const date = dateEl.value || new Date().toISOString().slice(0,10);
+  const text = textEl.value.trim();
+  if(!text){ alert('請輸入這筆進度的內容'); return; }
+  addProjectEntryLog(accountId, entryId, {date, text});
+  openLogs.add(entryId);
+  renderAccounts();
+}
+
+function personnelEntryRow(acc, e){
+  const insSum = (Number(e.pension)||0)+(Number(e.laborIns)||0)+(Number(e.healthIns)||0)+(Number(e.workInjuryIns)||0);
+  return `
+    <div class="entry-row-card">
+      <div class="entry-row-main">
+        <div class="entry-row-left">
+          <div class="item-main">${e.period||'（未填聘期／月份）'}</div>
+          <div class="meta">固定薪資 $${fmtMoney(e.baseSalary)} ＋ 保費合計 $${fmtMoney(insSum)}</div>
+        </div>
+        <div class="entry-row-right">
+          ${statusTag(e)}
+          <div class="num">實際核銷 $${fmtMoney(e.actual)}</div>
+          <div class="row-actions no-print">
+            <button class="icon-btn" onclick="openEditEntry('${acc.id}','${e.id}')">編輯</button>
+            <button class="icon-btn" onclick="removeProjectEntry('${acc.id}','${e.id}')">刪除</button>
+          </div>
+        </div>
+      </div>
+      ${e.note?`<div class="note">${e.note}</div>`:''}
+      <button class="log-toggle no-print" onclick="toggleLog('${e.id}')">核銷進度歷程（${(e.log||[]).length}）</button>
+      ${renderLogPanel(acc,e)}
+    </div>
+  `;
+}
+function otherEntryRow(acc, e){
+  return `
+    <div class="entry-row-card">
+      <div class="entry-row-main">
+        <div class="entry-row-left">
+          <div class="item-main">${e.item||''}</div>
+          ${e.desc?`<div class="item-sub">${e.desc}</div>`:''}
+          <div class="meta">${e.orderNo? `<strong>${e.orderNo}</strong> · `:''}${e.qty||1}${e.unit?(' '+e.unit):''} × $${fmtMoney(e.unitPrice)}</div>
+        </div>
+        <div class="entry-row-right">
+          ${statusTag(e)}
+          <div class="num">申請 $${fmtMoney(e.applied)}</div>
+          <div class="num">核銷 $${fmtMoney(e.actual)}</div>
+          <div class="row-actions no-print">
+            <button class="icon-btn" onclick="openEditEntry('${acc.id}','${e.id}')">編輯</button>
+            <button class="icon-btn" onclick="removeProjectEntry('${acc.id}','${e.id}')">刪除</button>
+          </div>
+        </div>
+      </div>
+      ${e.note?`<div class="note">${e.note}</div>`:''}
+      <button class="log-toggle no-print" onclick="toggleLog('${e.id}')">核銷進度歷程（${(e.log||[]).length}）</button>
+      ${renderLogPanel(acc,e)}
+    </div>
+  `;
+}
+function groupPersonnel(es){
+  const map = new Map();
+  es.forEach(e=>{
+    const key = (e.item||'').trim() || '（未命名）';
+    if(!map.has(key)) map.set(key, []);
+    map.get(key).push(e);
+  });
+  return Array.from(map.entries()).map(([name, list])=>({
+    name, role: list[list.length-1].role,
+    sumActual: list.reduce((s,x)=>s+(Number(x.actual)||0),0),
+    entries: list,
+  }));
+}
 
 function renderAccounts(){
   const accounts = getProjectAccounts();
@@ -218,54 +326,25 @@ function renderAccounts(){
       const es = (acc.entries||[]).filter(e=>e.type===t.key);
       const tt = totals[t.key];
       const isPersonnel = t.key==='personnel';
-      const rows = es.length ? `
-        <div class="table-scroll">
-        <table class="entry-table">
-          <thead><tr>
-            ${isPersonnel ? `
-              <th>人員 / 職稱</th><th>聘期／月份</th><th style="text-align:right">固定薪資</th><th style="text-align:right">保費合計</th><th style="text-align:right">實際核銷</th><th>備註</th><th></th>
-            ` : `
-              <th>申請單號</th><th>項目名稱 / 說明</th><th style="text-align:right">數量</th><th style="text-align:right">單價</th>
-              <th style="text-align:right">申請費用</th><th style="text-align:right">實際核銷</th><th>備註</th><th></th>
-            `}
-          </tr></thead>
-          <tbody>
-          ${es.map(e=>{
-            if(isPersonnel){
-              const insSum = (Number(e.pension)||0)+(Number(e.laborIns)||0)+(Number(e.healthIns)||0)+(Number(e.workInjuryIns)||0);
-              return `
-              <tr>
-                <td><div class="item-main">${e.item||''}</div>${e.role?`<div class="item-sub">${e.role}</div>`:''}</td>
-                <td class="item-sub">${e.period||''}</td>
-                <td class="num">${fmtMoney(e.baseSalary)}</td>
-                <td class="num">${fmtMoney(insSum)}</td>
-                <td class="num">${fmtMoney(e.actual)}</td>
-                <td class="note">${e.note||''}</td>
-                <td class="no-print"><div class="row-actions">
-                  <button class="icon-btn" onclick="openEditEntry('${acc.id}','${e.id}')">編輯</button>
-                  <button class="icon-btn" onclick="removeProjectEntry('${acc.id}','${e.id}')">刪除</button>
-                </div></td>
-              </tr>`;
-            }
-            return `
-              <tr>
-                <td class="note">${e.orderNo||'—'}</td>
-                <td><div class="item-main">${e.item||''}</div>${e.desc?`<div class="item-sub">${e.desc}</div>`:''}</td>
-                <td class="num">${e.qty||'—'}${e.unit?` ${e.unit}`:''}</td>
-                <td class="num">${e.unitPrice? fmtMoney(e.unitPrice):'—'}</td>
-                <td class="num">${fmtMoney(e.applied)}</td>
-                <td class="num">${fmtMoney(e.actual)}</td>
-                <td class="note">${e.note||''}</td>
-                <td class="no-print"><div class="row-actions">
-                  <button class="icon-btn" onclick="openEditEntry('${acc.id}','${e.id}')">編輯</button>
-                  <button class="icon-btn" onclick="removeProjectEntry('${acc.id}','${e.id}')">刪除</button>
-                </div></td>
-              </tr>`;
-          }).join('')}
-          </tbody>
-        </table>
-        </div>
-      ` : `<div class="entry-empty">尚無項目</div>`;
+
+      let body;
+      if(es.length===0){
+        body = `<div class="entry-empty">尚無項目</div>`;
+      } else if(isPersonnel){
+        body = groupPersonnel(es).map(g=>`
+          <div class="person-group">
+            <div class="person-group-head">
+              <div>${g.name} <span class="role">${g.role||''}</span></div>
+              <div class="category-subtotal">合計已核銷 $${fmtMoney(g.sumActual)}</div>
+            </div>
+            <div style="padding:2px 14px;">
+              ${g.entries.map(e=>personnelEntryRow(acc,e)).join('')}
+            </div>
+          </div>
+        `).join('');
+      } else {
+        body = es.map(e=>otherEntryRow(acc,e)).join('');
+      }
 
       return `
         <div style="margin-bottom:14px;">
@@ -276,7 +355,7 @@ function renderAccounts(){
               剩餘 <span class="${tt.remaining<0?'owe-amt':''}">${'$'+fmtMoney(tt.remaining)}</span>
             </div>
           </div>
-          ${rows}
+          ${body}
           <div class="no-print" style="margin-top:8px;">
             <button class="btn btn-sm btn-outline" onclick="openAddEntry('${acc.id}','${t.key}')">＋ 新增「${t.label}」項目</button>
           </div>
@@ -357,16 +436,21 @@ function removeProjectAccount(id){
 }
 
 /* ---------- 明細項目 modal（依費用類別分成兩種表單）---------- */
+function populateStatusSelect(elId, selected){
+  document.getElementById(elId).innerHTML = PROJECT_STATUS.map(s=>`<option value="${s.key}" ${s.key===(selected||'applying')?'selected':''}>${s.label}</option>`).join('');
+}
 function openAddEntry(accountId, typeKey){
   editingEntry = { accountId, entryId:null, type:typeKey };
   if(typeKey==='personnel'){
     document.getElementById('personnelModalTitle').textContent = '新增人力費項目';
     ['pItem','pRole','pPeriod','pBase','pPension','pLabor','pHealth','pInjury','pApplied','pActual','pNote'].forEach(id=> document.getElementById(id).value='');
+    populateStatusSelect('pStatus');
     updatePersonnelCalc();
     document.getElementById('personnelModalOverlay').classList.add('open');
   } else {
     document.getElementById('entryModalTitle').textContent = typeKey==='equipment' ? '新增研究設備費項目' : '新增雜項費用項目';
     ['eOrderNo','eItem','eDesc','eUnit','eQty','eUnitPrice','eApplied','eActual','eNote'].forEach(id=> document.getElementById(id).value='');
+    populateStatusSelect('eStatus');
     updateMiscCalc();
     document.getElementById('entryModalOverlay').classList.add('open');
   }
@@ -389,6 +473,7 @@ function openEditEntry(accountId, entryId){
     document.getElementById('pApplied').value = e.applied||'';
     document.getElementById('pActual').value = e.actual||'';
     document.getElementById('pNote').value = e.note||'';
+    populateStatusSelect('pStatus', e.status);
     updatePersonnelCalc();
     document.getElementById('personnelModalOverlay').classList.add('open');
   } else {
@@ -402,6 +487,7 @@ function openEditEntry(accountId, entryId){
     document.getElementById('eApplied').value = e.applied||'';
     document.getElementById('eActual').value = e.actual||'';
     document.getElementById('eNote').value = e.note||'';
+    populateStatusSelect('eStatus', e.status);
     updateMiscCalc();
     document.getElementById('entryModalOverlay').classList.add('open');
   }
@@ -442,6 +528,7 @@ document.getElementById('personnelBtnSave').onclick = ()=>{
     workInjuryIns: Number(document.getElementById('pInjury').value)||0,
     applied: Number(document.getElementById('pApplied').value)||personnelSum(),
     actual: Number(document.getElementById('pActual').value)||personnelSum(),
+    status: document.getElementById('pStatus').value,
     note: document.getElementById('pNote').value.trim(),
   };
   if(!payload.item){ alert('請輸入人員姓名'); return; }
@@ -477,6 +564,7 @@ document.getElementById('entryBtnSave').onclick = ()=>{
     unitPrice: Number(document.getElementById('eUnitPrice').value)||0,
     applied: Number(document.getElementById('eApplied').value)||0,
     actual: Number(document.getElementById('eActual').value)||0,
+    status: document.getElementById('eStatus').value,
     note: document.getElementById('eNote').value.trim(),
   };
   if(!payload.item){ alert('請輸入項目名稱'); return; }

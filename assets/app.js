@@ -40,6 +40,11 @@ const PROJECT_EXPENSE_TYPES = [
   { key: 'misc',       label: '八、雜項費用' },
   { key: 'equipment',  label: '十、研究設備費' },
 ];
+const PROJECT_STATUS = [
+  { key: 'applying',   label: '申請中',   cls: 'tag-pass' },
+  { key: 'processing', label: '核銷中',   cls: 'tag-processing' },
+  { key: 'done',        label: '核銷完成', cls: 'tag-settled' },
+];
 
 /* ---------------- 資料存取 ---------------- */
 function loadData(){
@@ -212,6 +217,17 @@ function deleteProjectEntry(accountId, entryId){
   const a = data.modules.project.accounts.find(x=>x.id===accountId);
   if(!a) return;
   a.entries = a.entries.filter(e=>e.id!==entryId);
+  saveData(data);
+}
+function addProjectEntryLog(accountId, entryId, logItem){
+  const data = loadData();
+  const a = data.modules.project.accounts.find(x=>x.id===accountId);
+  if(!a) return;
+  const e = a.entries.find(x=>x.id===entryId);
+  if(!e) return;
+  e.log = e.log || [];
+  e.log.push(logItem);
+  e.log.sort((x,y)=> (x.date||'').localeCompare(y.date||''));
   saveData(data);
 }
 function projectAccountTotals(account){
