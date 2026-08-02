@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>研究計畫經費 — 費用管理</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+    <div class="page-header">
+      <div>
+        <div class="eyebrow">研究計畫經費</div>
+        <h1>研究計畫經費</h1>
+        <div class="desc">依「計畫 / 會計代號」建立帳戶，追蹤核定金額與實際核銷，自動計算各費用類別（人力費／雜項費用／設備費）剩餘金額。與主任月費用不同，這裡是整個計畫的預算控管，不涉及主任個人墊款歸還。</div>
+      </div>
+      <div class="header-actions no-print">
+        <button class="btn btn-outline" id="btnNewAccount">＋ 新增計畫帳戶</button>
+        <button class="btn btn-primary" id="btnDownloadPdf">下載 PDF 報告</button>
+      </div>
+    </div>
+
+    <div id="reportRoot">
+      <div id="accountsRoot"></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- 帳戶（計畫／會計代號）新增／編輯 modal -->
+<div class="modal-overlay" id="accountModalOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="accountModalTitle">新增計畫帳戶</h3>
+      <button class="modal-close" id="accountModalClose">✕</button>
+    </div>
+    <div class="form-grid cols-2">
+      <div class="form-field">
+        <label>會計代號</label>
+        <input type="text" id="aCode" placeholder="例如：114221T7">
+      </div>
+      <div class="form-field">
+        <label>計畫／帳戶名稱</label>
+        <input type="text" id="aLabel" placeholder="例如：國科會第四年_AIRIC經費">
+      </div>
+      <div class="form-field span-2">
+        <label>執行期限（選填）</label>
+        <input type="text" id="aPeriod" placeholder="例如：114/09/01 ～ 116/04/30">
+      </div>
+      <div class="form-field">
+        <label>七、研究人力費 核定金額</label>
+        <input type="number" id="aQuotaPersonnel" placeholder="0">
+      </div>
+      <div class="form-field">
+        <label>八、雜項費用 核定金額</label>
+        <input type="number" id="aQuotaMisc" placeholder="0">
+      </div>
+      <div class="form-field">
+        <label>十、研究設備費 核定金額</label>
+        <input type="number" id="aQuotaEquipment" placeholder="0">
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" id="accountBtnCancel">取消</button>
+      <button class="btn btn-primary" id="accountBtnSave">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 明細項目 新增／編輯 modal -->
+<div class="modal-overlay" id="entryModalOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="entryModalTitle">新增明細項目</h3>
+      <button class="modal-close" id="entryModalClose">✕</button>
+    </div>
+    <div class="form-grid" id="entryFormGrid">
+      <div class="form-field span-2">
+        <label>費用類別</label>
+        <select id="eType"></select>
+      </div>
+      <div class="form-field span-2">
+        <label>項目 / 人員</label>
+        <input type="text" id="eItem" placeholder="例如：黃俊皓 或 課程費">
+      </div>
+      <div class="form-field span-4">
+        <label>說明</label>
+        <input type="text" id="eDesc" placeholder="例如：115年04月份薪資">
+      </div>
+      <div class="form-field">
+        <label>單位</label>
+        <input type="text" id="eUnit" placeholder="人／次／台">
+      </div>
+      <div class="form-field">
+        <label>數量</label>
+        <input type="number" id="eQty" placeholder="1">
+      </div>
+      <div class="form-field">
+        <label>單價</label>
+        <input type="number" id="eUnitPrice" placeholder="0">
+      </div>
+      <div class="form-field"></div>
+      <div class="form-field">
+        <label>申請費用</label>
+        <input type="number" id="eApplied" placeholder="0">
+      </div>
+      <div class="form-field">
+        <label>實際核銷</label>
+        <input type="number" id="eActual" placeholder="0">
+      </div>
+      <div class="form-field span-2"></div>
+      <div class="form-field span-4">
+        <label>備註 / 核銷狀態</label>
+        <textarea id="eNote" placeholder="例如：核銷完成（入主任）2026.07.24已付款"></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" id="entryBtnCancel">取消</button>
+      <button class="btn btn-primary" id="entryBtnSave">儲存</button>
+    </div>
+  </div>
+</div>
+
+<script src="assets/seed.js"></script>
+<script src="assets/app.js"></script>
+<script>
+ensureSeeded();
+renderSidebar('project');
+
+let editingAccountId = null;
+let editingEntry = null; // {accountId, entryId|null}
+
+document.getElementById('btnDownloadPdf').onclick = ()=> downloadPdf('reportRoot', `研究計畫經費_${currentMonthStr()}.pdf`);
+
+function typeLabel(k){ return PROJECT_EXPENSE_TYPES.find(t=>t.key===k)?.label || k; }
+
+function renderAccounts(){
+  const accounts = getProjectAccounts();
+  const root = document.getElementById('accountsRoot');
+  if(accounts.length===0){
+    root.innerHTML = `<div class="empty-state"><div class="big">＋</div>目前還沒有任何計畫帳戶，點右上角「新增計畫帳戶」開始建立。</div>`;
+    return;
+  }
+  root.innerHTML = accounts.map(acc=>{
+    const totals = projectAccountTotals(acc);
+    const typeBlocks = PROJECT_EXPENSE_TYPES.map(t=>{
+      const es = (acc.entries||[]).filter(e=>e.type===t.key);
+      const tt = totals[t.key];
+      const rows = es.length ? `
+        <div class="table-scroll">
+        <table class="entry-table">
+          <thead><tr>
+            <th>項目 / 人員</th><th>說明</th><th style="text-align:right">數量</th><th style="text-align:right">單價</th>
+            <th style="text-align:right">申請費用</th><th style="text-align:right">實際核銷</th><th>備註</th><th></th>
+          </tr></thead>
+          <tbody>
+          ${es.map(e=>`
+            <tr>
+              <td class="item-main">${e.item||''}</td>
+              <td class="item-sub">${e.desc||''}${e.unit? ` <span class="note">（${e.qty||''} ${e.unit}）</span>`:''}</td>
+              <td class="num">${e.unitPrice? fmtMoney(e.unitPrice):'—'}</td>
+              <td class="num">${e.qty||'—'}</td>
+              <td class="num">${fmtMoney(e.applied)}</td>
+              <td class="num">${fmtMoney(e.actual)}</td>
+              <td class="note">${e.note||''}</td>
+              <td class="no-print"><div class="row-actions">
+                <button class="icon-btn" onclick="openEditEntry('${acc.id}','${e.id}')">編輯</button>
+                <button class="icon-btn" onclick="removeProjectEntry('${acc.id}','${e.id}')">刪除</button>
+              </div></td>
+            </tr>
+          `).join('')}
+          </tbody>
+        </table>
+        </div>
+      ` : `<div class="entry-empty">尚無項目</div>`;
+
+      return `
+        <div style="margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+            <div style="font-size:13.5px;font-weight:500;">${t.label}</div>
+            <div class="category-subtotal">
+              核定 $${fmtMoney(tt.quota)} · 已核銷 $${fmtMoney(tt.actual)} ·
+              剩餘 <span class="${tt.remaining<0?'owe-amt':''}">${'$'+fmtMoney(tt.remaining)}</span>
+            </div>
+          </div>
+          ${rows}
+          <div class="no-print" style="margin-top:8px;">
+            <button class="btn btn-sm btn-outline" onclick="openAddEntry('${acc.id}','${t.key}')">＋ 新增「${t.label}」項目</button>
+          </div>
+        </div>
+      `;
+    }).join('<div style="height:1px;background:var(--line);margin:16px 0;"></div>');
+
+    return `
+      <div class="category-card">
+        <div class="category-head">
+          <div class="category-head-left">
+            <div class="category-title">${acc.label||'（未命名計畫）'}</div>
+            <div class="code-stub">會計代號 ${acc.code||'—'}</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div class="category-subtotal">總剩餘 <strong>$${fmtMoney(totals.grand.remaining)}</strong> / 核定 $${fmtMoney(totals.grand.quota)}</div>
+            <div class="no-print"><button class="icon-btn" onclick="openEditAccount('${acc.id}')">編輯帳戶</button>
+            <button class="icon-btn" onclick="removeProjectAccount('${acc.id}')">刪除帳戶</button></div>
+          </div>
+        </div>
+        ${acc.period? `<div style="padding:10px 20px 0; font-size:12px; color:var(--muted);">執行期限：${acc.period}</div>`:''}
+        <div style="padding:14px 20px 20px;">
+          ${typeBlocks}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+/* ---------- 帳戶 modal ---------- */
+document.getElementById('btnNewAccount').onclick = ()=>{
+  editingAccountId = null;
+  document.getElementById('accountModalTitle').textContent = '新增計畫帳戶';
+  document.getElementById('aCode').value = '';
+  document.getElementById('aLabel').value = '';
+  document.getElementById('aPeriod').value = '';
+  document.getElementById('aQuotaPersonnel').value = '';
+  document.getElementById('aQuotaMisc').value = '';
+  document.getElementById('aQuotaEquipment').value = '';
+  document.getElementById('accountModalOverlay').classList.add('open');
+};
+function openEditAccount(id){
+  const acc = getProjectAccounts().find(a=>a.id===id);
+  if(!acc) return;
+  editingAccountId = id;
+  document.getElementById('accountModalTitle').textContent = '編輯計畫帳戶';
+  document.getElementById('aCode').value = acc.code||'';
+  document.getElementById('aLabel').value = acc.label||'';
+  document.getElementById('aPeriod').value = acc.period||'';
+  document.getElementById('aQuotaPersonnel').value = acc.quotas?.personnel||'';
+  document.getElementById('aQuotaMisc').value = acc.quotas?.misc||'';
+  document.getElementById('aQuotaEquipment').value = acc.quotas?.equipment||'';
+  document.getElementById('accountModalOverlay').classList.add('open');
+}
+document.getElementById('accountModalClose').onclick = ()=> document.getElementById('accountModalOverlay').classList.remove('open');
+document.getElementById('accountBtnCancel').onclick = ()=> document.getElementById('accountModalOverlay').classList.remove('open');
+document.getElementById('accountBtnSave').onclick = ()=>{
+  const payload = {
+    code: document.getElementById('aCode').value.trim(),
+    label: document.getElementById('aLabel').value.trim(),
+    period: document.getElementById('aPeriod').value.trim(),
+    quotas: {
+      personnel: Number(document.getElementById('aQuotaPersonnel').value)||0,
+      misc: Number(document.getElementById('aQuotaMisc').value)||0,
+      equipment: Number(document.getElementById('aQuotaEquipment').value)||0,
+    }
+  };
+  if(!payload.label){ alert('請輸入計畫／帳戶名稱'); return; }
+  if(editingAccountId){ updateProjectAccount(editingAccountId, payload); }
+  else{ addProjectAccount(payload); }
+  document.getElementById('accountModalOverlay').classList.remove('open');
+  renderAccounts();
+};
+function removeProjectAccount(id){
+  if(!confirm('確定要刪除整個計畫帳戶嗎？裡面的所有明細也會一併刪除。')) return;
+  deleteProjectAccount(id);
+  renderAccounts();
+}
+
+/* ---------- 明細項目 modal ---------- */
+function populateTypeSelect(selected){
+  document.getElementById('eType').innerHTML = PROJECT_EXPENSE_TYPES.map(t=>`<option value="${t.key}" ${t.key===selected?'selected':''}>${t.label}</option>`).join('');
+}
+function openAddEntry(accountId, typeKey){
+  editingEntry = { accountId, entryId:null };
+  document.getElementById('entryModalTitle').textContent = '新增明細項目';
+  populateTypeSelect(typeKey);
+  document.getElementById('eItem').value='';
+  document.getElementById('eDesc').value='';
+  document.getElementById('eUnit').value='';
+  document.getElementById('eQty').value='';
+  document.getElementById('eUnitPrice').value='';
+  document.getElementById('eApplied').value='';
+  document.getElementById('eActual').value='';
+  document.getElementById('eNote').value='';
+  document.getElementById('entryModalOverlay').classList.add('open');
+}
+function openEditEntry(accountId, entryId){
+  const acc = getProjectAccounts().find(a=>a.id===accountId);
+  const e = acc?.entries.find(x=>x.id===entryId);
+  if(!e) return;
+  editingEntry = { accountId, entryId };
+  document.getElementById('entryModalTitle').textContent = '編輯明細項目';
+  populateTypeSelect(e.type);
+  document.getElementById('eItem').value = e.item||'';
+  document.getElementById('eDesc').value = e.desc||'';
+  document.getElementById('eUnit').value = e.unit||'';
+  document.getElementById('eQty').value = e.qty||'';
+  document.getElementById('eUnitPrice').value = e.unitPrice||'';
+  document.getElementById('eApplied').value = e.applied||'';
+  document.getElementById('eActual').value = e.actual||'';
+  document.getElementById('eNote').value = e.note||'';
+  document.getElementById('entryModalOverlay').classList.add('open');
+}
+document.getElementById('entryModalClose').onclick = ()=> document.getElementById('entryModalOverlay').classList.remove('open');
+document.getElementById('entryBtnCancel').onclick = ()=> document.getElementById('entryModalOverlay').classList.remove('open');
+document.getElementById('entryBtnSave').onclick = ()=>{
+  const payload = {
+    type: document.getElementById('eType').value,
+    item: document.getElementById('eItem').value.trim(),
+    desc: document.getElementById('eDesc').value.trim(),
+    unit: document.getElementById('eUnit').value.trim(),
+    qty: Number(document.getElementById('eQty').value)||0,
+    unitPrice: Number(document.getElementById('eUnitPrice').value)||0,
+    applied: Number(document.getElementById('eApplied').value)||0,
+    actual: Number(document.getElementById('eActual').value)||0,
+    note: document.getElementById('eNote').value.trim(),
+  };
+  if(!payload.item){ alert('請輸入項目／人員名稱'); return; }
+  if(editingEntry.entryId){ updateProjectEntry(editingEntry.accountId, editingEntry.entryId, payload); }
+  else{ addProjectEntry(editingEntry.accountId, payload); }
+  document.getElementById('entryModalOverlay').classList.remove('open');
+  renderAccounts();
+};
+function removeProjectEntry(accountId, entryId){
+  if(!confirm('確定要刪除這筆項目嗎？')) return;
+  deleteProjectEntry(accountId, entryId);
+  renderAccounts();
+}
+
+renderAccounts();
+</script>
+</body>
+</html>
