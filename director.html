@@ -71,13 +71,15 @@
         <input type="month" id="fMonth">
       </div>
       <div class="form-field"></div>
-      <div class="form-field span-2">
-        <label>項目</label>
-        <input type="text" id="fItem" placeholder="例如：軟體工具使用費">
-      </div>
-      <div class="form-field span-2">
-        <label>次項目 / 說明</label>
-        <input type="text" id="fSubitem" placeholder="例如：06月份（Claude Pro、iCloud）">
+      <div class="pair-row">
+        <div class="form-field">
+          <label>項目</label>
+          <input type="text" id="fItem" placeholder="例如：軟體工具使用費">
+        </div>
+        <div class="form-field">
+          <label>次項目 / 說明</label>
+          <input type="text" id="fSubitem" placeholder="例如：06月份（Claude Pro、iCloud）">
+        </div>
       </div>
       <div class="form-field">
         <label>支出金額</label>
@@ -92,7 +94,8 @@
         <textarea id="fNote" placeholder="核銷狀態、傳票號碼等"></textarea>
       </div>
       <div class="form-field span-2">
-        <div class="checkline"><input type="checkbox" id="fAdvanced"> 這筆是主任自己先墊付的錢（需要歸還）</div>
+        <label>款項性質</label>
+        <select id="fPaymentType"></select>
       </div>
       <div class="form-field span-2" id="settledWrap" style="display:none">
         <div class="checkline"><input type="checkbox" id="fSettled"> 已經入帳／歸還給主任</div>
@@ -168,6 +171,7 @@ function renderReconTable(){
   const rows = [
     { label:'主任本月新增墊付（待歸還）', data: recon.owedNew, cls:'' },
     { label:'代轉款項（主任無需歸還）', data: recon.passthrough, cls:'' },
+    { label:'主任支應但不需歸還（主任自行吸收）', data: recon.waived, cls:'' },
     { label:'本月已入帳給主任（含沖去年月墊款）', data: recon.settledThisMonth, cls:'' },
   ];
   const totalRow = FUND_SOURCES.reduce((acc,f)=>{
@@ -223,7 +227,7 @@ function renderCards(){
   const root = document.getElementById('cardsRoot');
   root.innerHTML = DIRECTOR_CATEGORIES.map(cat=>{
     const list = entries.filter(e=>e.category===cat.key);
-    const outstanding = list.filter(e=>e.directorAdvanced && !e.settled).reduce((s,e)=>s+(Number(e.expense)||0),0);
+    const outstanding = list.filter(e=>paymentTypeOf(e)==='reimbursable' && !e.settled).reduce((s,e)=>s+(Number(e.expense)||0),0);
 
     const rowsHtml = list.length ? `
       <div class="table-scroll">
@@ -233,9 +237,11 @@ function renderCards(){
         </tr></thead>
         <tbody>
         ${list.map(e=>{
+          const pt = paymentTypeOf(e);
           let tag = '<span class="tag tag-pass">代轉／無需歸還</span>';
-          if(e.directorAdvanced && e.settled) tag = '<span class="tag tag-settled">已入帳 · '+monthLabel(e.settledMonth)+'</span>';
-          else if(e.directorAdvanced && !e.settled) tag = '<span class="tag tag-owe">待歸還主任</span>';
+          if(pt==='reimbursable' && e.settled) tag = '<span class="tag tag-settled">已入帳 · '+monthLabel(e.settledMonth)+'</span>';
+          else if(pt==='reimbursable' && !e.settled) tag = '<span class="tag tag-owe">待歸還主任</span>';
+          else if(pt==='waived') tag = '<span class="tag tag-waived">主任自行吸收</span>';
           return `<tr>
             <td><div class="item-main">${e.item||''}</div>${e.subitem?`<div class="item-sub">${e.subitem}</div>`:''}</td>
             <td>${fundChip(e.fundSource)}</td>
@@ -279,15 +285,19 @@ function populateCategorySelect(selectedKey){
   const sel = document.getElementById('fCategory');
   sel.innerHTML = DIRECTOR_CATEGORIES.map(c=>`<option value="${c.key}" ${c.key===selectedKey?'selected':''}>${c.label}${c.code? ' · '+c.code:''}</option>`).join('');
 }
+function populatePaymentTypeSelect(selected){
+  document.getElementById('fPaymentType').innerHTML = PAYMENT_TYPES.map(p=>`<option value="${p.key}" ${p.key===selected?'selected':''}>${p.label}</option>`).join('');
+}
 function toggleAdvancedFields(){
-  const adv = document.getElementById('fAdvanced').checked;
-  document.getElementById('settledWrap').style.display = adv ? 'flex' : 'none';
+  const pt = document.getElementById('fPaymentType').value;
+  const isReimbursable = pt==='reimbursable';
+  document.getElementById('settledWrap').style.display = isReimbursable ? 'flex' : 'none';
   document.getElementById('settledWrap').style.flexDirection='column';
   const settled = document.getElementById('fSettled').checked;
-  document.getElementById('settledMonthWrap').style.display = (adv && settled) ? 'flex' : 'none';
+  document.getElementById('settledMonthWrap').style.display = (isReimbursable && settled) ? 'flex' : 'none';
   document.getElementById('settledMonthWrap').style.flexDirection='column';
 }
-document.getElementById('fAdvanced').onchange = toggleAdvancedFields;
+document.getElementById('fPaymentType').onchange = toggleAdvancedFields;
 document.getElementById('fSettled').onchange = toggleAdvancedFields;
 
 function openAdd(categoryKey){
@@ -302,7 +312,7 @@ function openAdd(categoryKey){
   document.getElementById('fExpense').value = '';
   document.getElementById('fIncome').value = '';
   document.getElementById('fNote').value = '';
-  document.getElementById('fAdvanced').checked = (categoryKey!=='passthrough');
+  populatePaymentTypeSelect(categoryKey==='passthrough' ? 'passthrough' : 'reimbursable');
   document.getElementById('fSettled').checked = false;
   document.getElementById('fSettledMonth').value = currentMonth;
   toggleAdvancedFields();
@@ -322,7 +332,7 @@ function openEdit(id){
   document.getElementById('fExpense').value = e.expense||'';
   document.getElementById('fIncome').value = e.income||'';
   document.getElementById('fNote').value = e.note||'';
-  document.getElementById('fAdvanced').checked = !!e.directorAdvanced;
+  populatePaymentTypeSelect(paymentTypeOf(e));
   document.getElementById('fSettled').checked = !!e.settled;
   document.getElementById('fSettledMonth').value = e.settledMonth || e.month;
   toggleAdvancedFields();
@@ -334,8 +344,8 @@ document.getElementById('modalClose').onclick = closeModal;
 document.getElementById('btnCancel').onclick = closeModal;
 
 document.getElementById('btnSave').onclick = ()=>{
-  const advanced = document.getElementById('fAdvanced').checked;
-  const settled = advanced && document.getElementById('fSettled').checked;
+  const paymentType = document.getElementById('fPaymentType').value;
+  const settled = paymentType==='reimbursable' && document.getElementById('fSettled').checked;
   const payload = {
     category: document.getElementById('fCategory').value,
     fundSource: document.getElementById('fFund').value,
@@ -345,11 +355,10 @@ document.getElementById('btnSave').onclick = ()=>{
     expense: Number(document.getElementById('fExpense').value)||0,
     income: Number(document.getElementById('fIncome').value)||0,
     note: document.getElementById('fNote').value.trim(),
-    directorAdvanced: advanced,
+    paymentType: paymentType,
     settled: settled,
-    settledMonth: settled ? (document.getElementById('fSettledMonth').value || payloadMonthFallback()) : null,
+    settledMonth: settled ? (document.getElementById('fSettledMonth').value || document.getElementById('fMonth').value || currentMonth) : null,
   };
-  function payloadMonthFallback(){ return document.getElementById('fMonth').value || currentMonth; }
 
   if(!payload.item){ alert('請輸入項目名稱'); return; }
 

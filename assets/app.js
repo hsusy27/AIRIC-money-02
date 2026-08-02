@@ -10,14 +10,13 @@ const STORAGE_KEY = 'expenseManagerData_v1';
 const DIRECTOR_CATEGORIES = [
   { key: 'hospital_expense', label: '醫院費用', code: null, note: '不編列會計代號，由醫院行政經費支應' },
   { key: 'passthrough',      label: '非主任開銷，另外申請給中心的費用', code: null, note: '主任代為申請／代領，非個人墊付' },
-  { key: 'code_114221T5',    label: '計畫費用', code: '114221T5' },
-  { key: 'code_114221T7',    label: '計畫費用', code: '114221T7' }, 
-  { key: 'code_113221T5',    label: '計畫費用', code: '113221T5' },
-  { key: 'code_113221T3',    label: '計畫費用', code: '113221T3' },
-  { key: 'code_11442501',    label: '計畫費用', code: '11442501' },
-  { key: 'code_114221CM',    label: '計畫費用', code: '114221CM' },
-  { key: 'code_114221EP',    label: '計畫費用', code: '114221EP' },
-
+  { key: 'code_113221T5',    label: '軟體與工具類支出', code: '113221T5' },
+  { key: 'code_113221T3',    label: '審查／登記費用', code: '113221T3' },
+  { key: 'code_11442501',    label: '工具授權（跨年度）', code: '11442501' },
+  { key: 'code_114221CM',    label: '計畫支出', code: '114221CM' },
+  { key: 'code_114221EP',    label: '計畫支出', code: '114221EP' },
+  { key: 'code_114221T5',    label: '計畫支出', code: '114221T5' },
+  { key: 'code_114221T7',    label: '計畫支出', code: '114221T7' },
 ];
 
 const FUND_SOURCES = [
@@ -32,14 +31,14 @@ const MODULES = {
   hospital:  { label: '院內計畫',   path: 'hospital.html' },
   pettycash: { label: '中心零用金', path: 'pettycash.html' },
   teamdinner:{ label: '小組聚餐',   path: 'teamdinner.html' },
-  project:   { label: '各計畫經費', path: 'project.html' },
+  project:   { label: '研究計畫經費', path: 'project.html' },
 };
 
 /* 研究計畫經費：每個「計畫/會計代號」帳戶下分三種費用類別（對照國科會核定清單格式）*/
 const PROJECT_EXPENSE_TYPES = [
-  { key: 'personnel', label: '研究人力費' },
-  { key: 'misc',       label: '雜項費用' },
-  { key: 'equipment',  label: '研究設備費' },
+  { key: 'personnel', label: '七、研究人力費' },
+  { key: 'misc',       label: '八、雜項費用' },
+  { key: 'equipment',  label: '十、研究設備費' },
 ];
 const PROJECT_STATUS = [
   { key: 'applying',   label: '申請中',   cls: 'tag-pass' },
@@ -117,26 +116,39 @@ function fmtMoney(n){
   return n===0 ? '—' : n.toLocaleString('zh-TW');
 }
 
+const PAYMENT_TYPES = [
+  { key:'passthrough',  label:'代轉款項（主任沒有出錢，不需歸還）', tagCls:'tag-pass',       tagLabel:'代轉／無需歸還' },
+  { key:'reimbursable', label:'主任先墊付（需要歸還）',             tagCls:'tag-owe',        tagLabel:'待歸還主任' },
+  { key:'waived',       label:'主任支應但不需歸還（主任自行吸收）', tagCls:'tag-waived',     tagLabel:'主任自行吸收' },
+];
+function paymentTypeOf(e){
+  if(e.paymentType) return e.paymentType;
+  return e.directorAdvanced ? 'reimbursable' : 'passthrough'; // 舊資料相容
+}
+
 /* ---------------- 主任月費用：對帳計算 ---------------- */
 // entry: {id, month, category, fundSource, item, subitem, expense, income, note,
-//         directorAdvanced(bool), settled(bool), settledMonth}
+//         paymentType('passthrough'|'reimbursable'|'waived'), settled(bool), settledMonth}
 
 function directorReconForMonth(month){
   const entries = getEntries('director');
-  const rows = { owedNew:{}, passthrough:{}, settledThisMonth:{} };
-  FUND_SOURCES.forEach(f=>{ rows.owedNew[f.key]=0; rows.passthrough[f.key]=0; rows.settledThisMonth[f.key]=0; });
+  const rows = { owedNew:{}, passthrough:{}, waived:{}, settledThisMonth:{} };
+  FUND_SOURCES.forEach(f=>{ rows.owedNew[f.key]=0; rows.passthrough[f.key]=0; rows.waived[f.key]=0; rows.settledThisMonth[f.key]=0; });
 
   entries.forEach(e=>{
     const amt = Number(e.expense)||0;
+    const pt = paymentTypeOf(e);
     if(e.month === month){
-      if(e.directorAdvanced){
+      if(pt==='reimbursable'){
         if(!e.settled) rows.owedNew[e.fundSource] = (rows.owedNew[e.fundSource]||0) + amt;
-      } else {
+      } else if(pt==='passthrough'){
         rows.passthrough[e.fundSource] = (rows.passthrough[e.fundSource]||0) + amt;
+      } else if(pt==='waived'){
+        rows.waived[e.fundSource] = (rows.waived[e.fundSource]||0) + amt;
       }
     }
     // 沖帳：不論哪個月產生，只要「這個月」被標記已入帳，就算這個月的入帳金額
-    if(e.directorAdvanced && e.settled && e.settledMonth === month){
+    if(pt==='reimbursable' && e.settled && e.settledMonth === month){
       rows.settledThisMonth[e.fundSource] = (rows.settledThisMonth[e.fundSource]||0) + amt;
     }
   });
@@ -145,7 +157,7 @@ function directorReconForMonth(month){
 
 function directorOutstandingUpTo(month){
   // 累計至該月為止（含）尚未清償金額，依資金來源分組 + 明細
-  const entries = getEntries('director').filter(e=> e.directorAdvanced && !e.settled && e.month <= month);
+  const entries = getEntries('director').filter(e=> paymentTypeOf(e)==='reimbursable' && !e.settled && e.month <= month);
   const byFund = {}; FUND_SOURCES.forEach(f=>byFund[f.key]=0);
   entries.forEach(e=>{ byFund[e.fundSource] = (byFund[e.fundSource]||0) + (Number(e.expense)||0); });
   const total = Object.values(byFund).reduce((a,b)=>a+b,0);
@@ -153,7 +165,7 @@ function directorOutstandingUpTo(month){
 }
 
 function directorAllOutstanding(){
-  const entries = getEntries('director').filter(e=> e.directorAdvanced && !e.settled)
+  const entries = getEntries('director').filter(e=> paymentTypeOf(e)==='reimbursable' && !e.settled)
     .sort((a,b)=> a.month.localeCompare(b.month));
   const total = entries.reduce((s,e)=> s + (Number(e.expense)||0), 0);
   return { total, entries };
@@ -297,7 +309,7 @@ function renderSidebar(activePage){
         <a href="hospital.html" class="${activePage==='hospital'?'active':''}"><span class="dot"></span>院內計畫</a>
         <a href="pettycash.html" class="${activePage==='pettycash'?'active':''}"><span class="dot"></span>中心零用金</a>
         <a href="teamdinner.html" class="${activePage==='teamdinner'?'active':''}"><span class="dot"></span>小組聚餐</a>
-        <a href="project.html" class="${activePage==='project'?'active':''}"><span class="dot"></span>各計畫經費</a>
+        <a href="project.html" class="${activePage==='project'?'active':''}"><span class="dot"></span>研究計畫經費</a>
       </div>
     </div>
     <div class="sidebar-footer">

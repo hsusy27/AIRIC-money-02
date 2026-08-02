@@ -25,6 +25,9 @@ window.SEED_DATA = {
         item:'202601 范教授來院指導', subitem:'漏帳', expense:24000, income:0,
         directorAdvanced:true, settled:false, settledMonth:null,
         note:'AE1150500558 費用轉停（傳票號碼：11505C000276）' },
+      { id:'s5b', month:'2026-06', category:'hospital_expense', fundSource:'hospital',
+        item:'部門小禮物', subitem:'新進同仁歡迎小禮', expense:600, income:0,
+        paymentType:'waived', settled:false, settledMonth:null, note:'主任自己請客，不需歸還' },
 
       // ---- 113221T5：軟體與工具類支出 ----
       { id:'s6', month:'2026-06', category:'code_113221T5', fundSource:'school',

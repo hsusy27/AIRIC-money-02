@@ -140,10 +140,10 @@ function renderDirectorYearTable(){
   let html = '<thead><tr><th>年度</th><th>主任墊付總額</th><th>已入帳歸還</th><th>代轉款項</th><th>年底累計未歸還</th></tr></thead><tbody>';
   years.forEach(y=>{
     const yEntries = entries.filter(e=>yearOf(e.month)===y);
-    const advanced = yEntries.filter(e=>e.directorAdvanced).reduce((s,e)=>s+(Number(e.expense)||0),0);
-    const settled = yEntries.filter(e=>e.directorAdvanced && e.settled && yearOf(e.settledMonth)===y).reduce((s,e)=>s+(Number(e.expense)||0),0);
-    const pass = yEntries.filter(e=>!e.directorAdvanced).reduce((s,e)=>s+(Number(e.expense)||0),0);
-    const outstanding = entries.filter(e=>e.directorAdvanced && !e.settled && yearOf(e.month)<=y).reduce((s,e)=>s+(Number(e.expense)||0),0);
+    const advanced = yEntries.filter(e=>paymentTypeOf(e)==='reimbursable').reduce((s,e)=>s+(Number(e.expense)||0),0);
+    const settled = yEntries.filter(e=>paymentTypeOf(e)==='reimbursable' && e.settled && yearOf(e.settledMonth)===y).reduce((s,e)=>s+(Number(e.expense)||0),0);
+    const pass = yEntries.filter(e=>paymentTypeOf(e)==='passthrough').reduce((s,e)=>s+(Number(e.expense)||0),0);
+    const outstanding = entries.filter(e=>paymentTypeOf(e)==='reimbursable' && !e.settled && yearOf(e.month)<=y).reduce((s,e)=>s+(Number(e.expense)||0),0);
     html += `<tr><td>${y}</td><td>${fmtMoney(advanced)}</td><td>${fmtMoney(settled)}</td><td>${fmtMoney(pass)}</td><td>${fmtMoney(outstanding)}</td></tr>`;
   });
   if(years.length===0) html += '<tr><td colspan="5" style="text-align:center;color:var(--muted)">尚無資料</td></tr>';
