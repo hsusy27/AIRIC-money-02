@@ -63,7 +63,10 @@ function loadData(){
   return data;
 }
 function saveData(data){
+  data.meta = data.meta || {};
+  data.meta.updatedAt = Date.now();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  if(typeof queueCloudPush === 'function') queueCloudPush();
 }
 function ensureSeeded(){
   const data = loadData();
@@ -313,7 +316,9 @@ function renderSidebar(activePage){
       </div>
     </div>
     <div class="sidebar-footer">
-      <div style="font-size:11px; color:var(--muted); line-height:1.5; padding:0 2px 4px;">
+      <div id="syncStatus" style="font-size:11px; color:var(--muted); padding:0 2px 2px;"></div>
+      <button class="ghost-btn" id="btnSyncSettings">雲端同步設定</button>
+      <div style="font-size:11px; color:var(--muted); line-height:1.5; padding:4px 2px 4px;">
         資料存在「這個瀏覽器＋這個網址」。請固定用同一個網址開啟，並定期匯出備份。
       </div>
       <button class="ghost-btn" id="btnExport">匯出備份 JSON</button>
@@ -324,6 +329,7 @@ function renderSidebar(activePage){
   document.getElementById('btnExport').onclick = exportBackup;
   document.getElementById('btnImport').onclick = ()=> document.getElementById('fileImport').click();
   document.getElementById('fileImport').onchange = (e)=>{ if(e.target.files[0]) importBackup(e.target.files[0]); };
+  if(typeof wireSyncUI === 'function') wireSyncUI();
 }
 
 /* ---------------- PDF 匯出（自動產生，不需手動列印設定） ---------------- */

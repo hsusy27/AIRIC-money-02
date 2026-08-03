@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>中心零用金 — 費用管理</title>
 <link rel="stylesheet" href="assets/style.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
@@ -87,6 +89,7 @@
 
 <script src="assets/seed.js"></script>
 <script src="assets/app.js"></script>
+<script src="assets/sync.js"></script>
 <script>
 ensureSeeded();
 renderSidebar('pettycash');
@@ -214,7 +217,11 @@ function removeEntry(id){
   renderAll();
 }
 
-init();
+(async function(){
+  await initialSyncOnLoad();
+  init();
+  if(typeof watchCloudChanges==='function') watchCloudChanges();
+})();
 </script>
 </body>
 </html>
