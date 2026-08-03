@@ -153,9 +153,13 @@ function insertSyncModalIfMissing(){
     renderSyncStatus();
   };
   document.getElementById('syncBtnSave').onclick = async ()=>{
-    const raw = document.getElementById('syncFirebaseConfig').value.trim();
+    let raw = document.getElementById('syncFirebaseConfig').value.trim();
     const roomCode = document.getElementById('syncRoomCode').value.trim();
     if(!raw || !roomCode){ alert('請貼上 Firebase 設定，並填寫同步房間代碼'); return; }
+    // 容錯處理：允許貼上 "const firebaseConfig = {...};" 這種完整寫法，
+    // 也允許只貼 "{...}" 本身、結尾多一個分號等常見複製差異
+    raw = raw.replace(/^(export\s+default\s+|const\s+\w+\s*=\s*|var\s+\w+\s*=\s*|let\s+\w+\s*=\s*)/,'');
+    raw = raw.replace(/;\s*$/,'');
     let cfgObj;
     try{ cfgObj = (new Function('return (' + raw + ')'))(); }catch(e){ alert('Firebase 設定格式看不懂，請確認是完整複製貼上（包含最外層的大括號）'); return; }
     if(!cfgObj || !cfgObj.projectId){ alert('這份設定看起來不完整（缺少 projectId），請重新從 Firebase 主控台複製'); return; }
