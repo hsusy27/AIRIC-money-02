@@ -32,6 +32,9 @@
       <div class="divider-label">尚未歸還主任的墊款明細（可直接標記入帳，達成跨月沖帳）</div>
       <div id="outstandingRoot" style="margin-bottom:30px;"></div>
 
+      <div class="divider-label">代轉款項中「尚未交給中心」的明細（可直接標記已交付）</div>
+      <div id="pendingCenterRoot" style="margin-bottom:30px;"></div>
+
       <div class="divider-label">主任月費用 · 歷年收支總表</div>
       <div class="scroll-hint">← 手機請左右滑動可看到完整欄位 →</div>
       <div class="table-scroll" style="margin-bottom:30px;">
@@ -79,8 +82,9 @@ let pendingSettleId = null;
 
 function renderHeadline(){
   const all = directorAllOutstanding();
+  const pending = directorPendingToCenterAll();
   const byFund = {}; FUND_SOURCES.forEach(f=>byFund[f.key]=0);
-  all.entries.forEach(e=>{ byFund[e.fundSource]=(byFund[e.fundSource]||0)+(Number(e.expense)||0); });
+  all.entries.forEach(e=>{ byFund[e.fundSource]=(byFund[e.fundSource]||0)+directorEntryAmount(e); });
   document.getElementById('headlineStrip').innerHTML = `
     <div class="stat-card owe">
       <div class="label">主任目前尚未拿回的總金額</div>
@@ -92,6 +96,10 @@ function renderHeadline(){
         <div class="value">$ ${fmtMoney(byFund[f.key])}</div>
       </div>
     `).join('')}
+    <div class="stat-card" style="border-color:var(--center);">
+      <div class="label">代轉款項中尚未交給中心</div>
+      <div class="value" style="color:var(--center);">$ ${fmtMoney(pending.total)}</div>
+    </div>
   `;
 }
 
@@ -109,8 +117,29 @@ function renderOutstanding(){
         <div class="meta">${monthLabel(e.month)} · ${fundLabelOf(e.fundSource)} · ${categoryLabelOf(e.category)}</div>
       </div>
       <div style="display:flex; align-items:center; gap:14px;">
-        <div class="amt">$ ${fmtMoney(e.expense)}</div>
+        <div class="amt">$ ${fmtMoney(directorEntryAmount(e))}</div>
         <button class="btn btn-sm btn-outline no-print" onclick="openSettle('${e.id}')">標記已入帳</button>
+      </div>
+    </div>
+  `).join('') + `</div>`;
+}
+
+function renderPendingToCenter(){
+  const pending = directorPendingToCenterAll();
+  const root = document.getElementById('pendingCenterRoot');
+  if(pending.entries.length===0){
+    root.innerHTML = `<div class="empty-state"><div class="big">✓</div>目前沒有還沒交給中心的代轉款項。</div>`;
+    return;
+  }
+  root.innerHTML = `<div class="outstanding-list">` + pending.entries.map(e=>`
+    <div class="outstanding-item to-center">
+      <div>
+        <div class="item-main">${e.item||''} ${e.subitem?`· ${e.subitem}`:''}</div>
+        <div class="meta">${monthLabel(e.month)} · ${fundLabelOf(e.fundSource)} · ${categoryLabelOf(e.category)}</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:14px;">
+        <div class="amt">$ ${fmtMoney(directorEntryAmount(e))}</div>
+        <button class="btn btn-sm btn-outline no-print" onclick="openSettle('${e.id}')">標記已交給中心</button>
       </div>
     </div>
   `).join('') + `</div>`;
@@ -123,6 +152,10 @@ function openSettle(id){
   pendingSettleId = id;
   const e = getEntries('director').find(x=>x.id===id);
   document.getElementById('fSettledMonth').value = e ? e.month : currentMonthStr();
+  const isPass = e && paymentTypeOf(e)==='passthrough';
+  document.querySelector('#modalOverlay .modal-head h3').textContent = isPass ? '標記已交給中心' : '標記入帳';
+  document.querySelector('#modalOverlay label').textContent = isPass ? '交付月份' : '入帳月份';
+  document.getElementById('btnConfirmSettle').textContent = isPass ? '確認已交給中心' : '確認已入帳';
   document.getElementById('modalOverlay').classList.add('open');
 }
 document.getElementById('modalClose').onclick = ()=> document.getElementById('modalOverlay').classList.remove('open');
@@ -177,6 +210,7 @@ function renderOtherYearTable(){
 function renderPage(){
   renderHeadline();
   renderOutstanding();
+  renderPendingToCenter();
   renderDirectorYearTable();
   renderOtherYearTable();
 }

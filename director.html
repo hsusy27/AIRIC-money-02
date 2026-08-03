@@ -100,10 +100,10 @@
         <select id="fPaymentType"></select>
       </div>
       <div class="form-field span-2" id="settledWrap" style="display:none">
-        <div class="checkline"><input type="checkbox" id="fSettled"> 已經入帳／歸還給主任</div>
+        <div class="checkline"><input type="checkbox" id="fSettled"> <span id="fSettledLabel">已經入帳／歸還給主任</span></div>
       </div>
       <div class="form-field" id="settledMonthWrap" style="display:none">
-        <label>入帳月份（可與發生月份不同，用於下月沖帳）</label>
+        <label id="fSettledMonthLabel">入帳月份（可與發生月份不同，用於下月沖帳）</label>
         <input type="month" id="fSettledMonth">
       </div>
     </div>
@@ -191,11 +191,16 @@ function renderReconTable(){
     FUND_SOURCES.forEach(f=>{ const v=r.data[f.key]||0; sum+=v; html+=`<td>${fmtMoney(v)}</td>`; });
     html += `<td>${fmtMoney(sum)}</td></tr>`;
   });
-  // 合計列：本月待給主任總額（新增未清償）
-  let grand = 0;
-  html += `<tr><td>本月應付主任總額</td>`;
-  FUND_SOURCES.forEach(f=>{ const v = recon.owedNew[f.key]||0; grand+=v; html+=`<td>${fmtMoney(v)}</td>`; });
-  html += `<td>${fmtMoney(grand)}</td></tr>`;
+  // 合計列 1：本月應付主任總額（僅計「需歸還」的部分）
+  let grand1 = 0;
+  html += `<tr><td>本月應付主任總額（需歸還）</td>`;
+  FUND_SOURCES.forEach(f=>{ const v = recon.owedNew[f.key]||0; grand1+=v; html+=`<td>${fmtMoney(v)}</td>`; });
+  html += `<td>${fmtMoney(grand1)}</td></tr>`;
+  // 合計列 2：本月主任支出總額（需歸還 + 自行吸收，代表主任這個月實際自己出了多少錢）
+  let grand2 = 0;
+  html += `<tr><td>本月主任支出總額（含自行吸收）</td>`;
+  FUND_SOURCES.forEach(f=>{ const v = (recon.owedNew[f.key]||0) + (recon.waived[f.key]||0); grand2+=v; html+=`<td>${fmtMoney(v)}</td>`; });
+  html += `<td>${fmtMoney(grand2)}</td></tr>`;
   html += '</tbody>';
   document.getElementById('reconTable').innerHTML = html;
 }
@@ -230,7 +235,8 @@ function renderCards(){
   const root = document.getElementById('cardsRoot');
   root.innerHTML = DIRECTOR_CATEGORIES.map(cat=>{
     const list = entries.filter(e=>e.category===cat.key);
-    const outstanding = list.filter(e=>paymentTypeOf(e)==='reimbursable' && !e.settled).reduce((s,e)=>s+(Number(e.expense)||0),0);
+    const outstanding = list.filter(e=>paymentTypeOf(e)==='reimbursable' && !e.settled).reduce((s,e)=>s+directorEntryAmount(e),0);
+    const pendingToCenter = list.filter(e=>paymentTypeOf(e)==='passthrough' && !e.settled).reduce((s,e)=>s+directorEntryAmount(e),0);
 
     const rowsHtml = list.length ? `
       <div class="table-scroll">
@@ -241,10 +247,12 @@ function renderCards(){
         <tbody>
         ${list.map(e=>{
           const pt = paymentTypeOf(e);
-          let tag = '<span class="tag tag-pass">代轉／無需歸還</span>';
+          let tag = '<span class="tag tag-pass">代轉／待交中心</span>';
           if(pt==='reimbursable' && e.settled) tag = '<span class="tag tag-settled">已入帳 · '+monthLabel(e.settledMonth)+'</span>';
           else if(pt==='reimbursable' && !e.settled) tag = '<span class="tag tag-owe">待歸還主任</span>';
           else if(pt==='waived') tag = '<span class="tag tag-waived">主任自行吸收</span>';
+          else if(pt==='passthrough' && e.settled) tag = '<span class="tag tag-settled">已交中心 · '+monthLabel(e.settledMonth)+'</span>';
+          else if(pt==='passthrough' && !e.settled) tag = '<span class="tag tag-pass">代轉／待交中心</span>';
           return `<tr>
             <td><div class="item-main">${e.item||''}</div>${e.subitem?`<div class="item-sub">${e.subitem}</div>`:''}</td>
             <td>${fundChip(e.fundSource)}</td>
@@ -271,7 +279,10 @@ function renderCards(){
             ${cat.code ? `<div class="code-stub">會計代號 ${cat.code}</div>` : ''}
           </div>
           <div class="category-subtotal">
-            ${outstanding>0 ? `本月待歸還 <span class="owe-amt">$${fmtMoney(outstanding)}</span>` : '本月無待歸還款項'}
+            ${[
+              outstanding>0 ? `本月待歸還 <span class="owe-amt">$${fmtMoney(outstanding)}</span>` : '',
+              pendingToCenter>0 ? `待交中心 <span style="color:var(--center); font-weight:600;">$${fmtMoney(pendingToCenter)}</span>` : '',
+            ].filter(Boolean).join(' · ') || '本月無待處理款項'}
           </div>
         </div>
         ${rowsHtml}
@@ -293,11 +304,13 @@ function populatePaymentTypeSelect(selected){
 }
 function toggleAdvancedFields(){
   const pt = document.getElementById('fPaymentType').value;
-  const isReimbursable = pt==='reimbursable';
-  document.getElementById('settledWrap').style.display = isReimbursable ? 'flex' : 'none';
+  const tracksSettlement = pt==='reimbursable' || pt==='passthrough';
+  document.getElementById('settledWrap').style.display = tracksSettlement ? 'flex' : 'none';
   document.getElementById('settledWrap').style.flexDirection='column';
+  document.getElementById('fSettledLabel').textContent = pt==='passthrough' ? '已經交給中心／完成撥款' : '已經入帳／歸還給主任';
+  document.getElementById('fSettledMonthLabel').textContent = pt==='passthrough' ? '交付月份（可與發生月份不同）' : '入帳月份（可與發生月份不同，用於下月沖帳）';
   const settled = document.getElementById('fSettled').checked;
-  document.getElementById('settledMonthWrap').style.display = (isReimbursable && settled) ? 'flex' : 'none';
+  document.getElementById('settledMonthWrap').style.display = (tracksSettlement && settled) ? 'flex' : 'none';
   document.getElementById('settledMonthWrap').style.flexDirection='column';
 }
 document.getElementById('fPaymentType').onchange = toggleAdvancedFields;
@@ -348,7 +361,8 @@ document.getElementById('btnCancel').onclick = closeModal;
 
 document.getElementById('btnSave').onclick = ()=>{
   const paymentType = document.getElementById('fPaymentType').value;
-  const settled = paymentType==='reimbursable' && document.getElementById('fSettled').checked;
+  const tracksSettlement = paymentType==='reimbursable' || paymentType==='passthrough';
+  const settled = tracksSettlement && document.getElementById('fSettled').checked;
   const payload = {
     category: document.getElementById('fCategory').value,
     fundSource: document.getElementById('fFund').value,

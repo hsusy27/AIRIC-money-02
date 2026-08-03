@@ -10,13 +10,13 @@ const STORAGE_KEY = 'expenseManagerData_v1';
 const DIRECTOR_CATEGORIES = [
   { key: 'hospital_expense', label: '醫院費用', code: null, note: '不編列會計代號，由醫院行政經費支應' },
   { key: 'passthrough',      label: '非主任開銷，另外申請給中心的費用', code: null, note: '主任代為申請／代領，非個人墊付' },
-  { key: 'code_114221T5',    label: '計畫費用', code: '114221T5' },
-  { key: 'code_114221T7',    label: '計畫費用', code: '114221T7' },  
-  { key: 'code_113221T5',    label: '計畫費用', code: '113221T5' },
-  { key: 'code_113221T3',    label: '計畫費用', code: '113221T3' },
-  { key: 'code_11442501',    label: '計畫費用', code: '11442501' },
-  { key: 'code_114221CM',    label: '計畫費用', code: '114221CM' },
-  { key: 'code_114221EP',    label: '計畫費用', code: '114221EP' },
+  { key: 'code_113221T5',    label: '軟體與工具類支出', code: '113221T5' },
+  { key: 'code_113221T3',    label: '審查／登記費用', code: '113221T3' },
+  { key: 'code_11442501',    label: '工具授權（跨年度）', code: '11442501' },
+  { key: 'code_114221CM',    label: '計畫支出', code: '114221CM' },
+  { key: 'code_114221EP',    label: '計畫支出', code: '114221EP' },
+  { key: 'code_114221T5',    label: '計畫支出', code: '114221T5' },
+  { key: 'code_114221T7',    label: '計畫支出', code: '114221T7' },
 ];
 
 const FUND_SOURCES = [
@@ -133,13 +133,24 @@ function paymentTypeOf(e){
 // entry: {id, month, category, fundSource, item, subitem, expense, income, note,
 //         paymentType('passthrough'|'reimbursable'|'waived'), settled(bool), settledMonth}
 
+/* 這筆項目實際代表的金額：一般用「支出」欄；但代轉款項有些人習慣填在
+   「收入」欄（例如記錄成「即將撥入中心的款項」），所以代轉款項會兩欄
+   都看，取有填數字的那一欄，避免漏算。 */
+function directorEntryAmount(e){
+  const exp = Number(e.expense)||0;
+  if(exp>0) return exp;
+  const pt = paymentTypeOf(e);
+  if(pt==='passthrough') return Number(e.income)||0;
+  return 0;
+}
+
 function directorReconForMonth(month){
   const entries = getEntries('director');
   const rows = { owedNew:{}, passthrough:{}, waived:{}, settledThisMonth:{} };
   FUND_SOURCES.forEach(f=>{ rows.owedNew[f.key]=0; rows.passthrough[f.key]=0; rows.waived[f.key]=0; rows.settledThisMonth[f.key]=0; });
 
   entries.forEach(e=>{
-    const amt = Number(e.expense)||0;
+    const amt = directorEntryAmount(e);
     const pt = paymentTypeOf(e);
     if(e.month === month){
       if(pt==='reimbursable'){
@@ -162,7 +173,7 @@ function directorOutstandingUpTo(month){
   // 累計至該月為止（含）尚未清償金額，依資金來源分組 + 明細
   const entries = getEntries('director').filter(e=> paymentTypeOf(e)==='reimbursable' && !e.settled && e.month <= month);
   const byFund = {}; FUND_SOURCES.forEach(f=>byFund[f.key]=0);
-  entries.forEach(e=>{ byFund[e.fundSource] = (byFund[e.fundSource]||0) + (Number(e.expense)||0); });
+  entries.forEach(e=>{ byFund[e.fundSource] = (byFund[e.fundSource]||0) + directorEntryAmount(e); });
   const total = Object.values(byFund).reduce((a,b)=>a+b,0);
   return { total, byFund, entries };
 }
@@ -170,7 +181,15 @@ function directorOutstandingUpTo(month){
 function directorAllOutstanding(){
   const entries = getEntries('director').filter(e=> paymentTypeOf(e)==='reimbursable' && !e.settled)
     .sort((a,b)=> a.month.localeCompare(b.month));
-  const total = entries.reduce((s,e)=> s + (Number(e.expense)||0), 0);
+  const total = entries.reduce((s,e)=> s + directorEntryAmount(e), 0);
+  return { total, entries };
+}
+
+/* 代轉款項中「還沒交給中心」的部分（跟上面「還沒歸還主任」的邏輯對稱） */
+function directorPendingToCenterAll(){
+  const entries = getEntries('director').filter(e=> paymentTypeOf(e)==='passthrough' && !e.settled)
+    .sort((a,b)=> a.month.localeCompare(b.month));
+  const total = entries.reduce((s,e)=> s + directorEntryAmount(e), 0);
   return { total, entries };
 }
 
