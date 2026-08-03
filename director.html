@@ -193,12 +193,12 @@ function renderReconTable(){
   });
   // 合計列 1：本月應付主任總額（僅計「需歸還」的部分）
   let grand1 = 0;
-  html += `<tr><td>本月應付主任總額（需歸還）</td>`;
+  html += `<tr class="total-row"><td>本月應付主任總額（需歸還）</td>`;
   FUND_SOURCES.forEach(f=>{ const v = recon.owedNew[f.key]||0; grand1+=v; html+=`<td>${fmtMoney(v)}</td>`; });
   html += `<td>${fmtMoney(grand1)}</td></tr>`;
   // 合計列 2：本月主任支出總額（需歸還 + 自行吸收，代表主任這個月實際自己出了多少錢）
   let grand2 = 0;
-  html += `<tr><td>本月主任支出總額（含自行吸收）</td>`;
+  html += `<tr class="total-row"><td>本月主任支出總額（含自行吸收）</td>`;
   FUND_SOURCES.forEach(f=>{ const v = (recon.owedNew[f.key]||0) + (recon.waived[f.key]||0); grand2+=v; html+=`<td>${fmtMoney(v)}</td>`; });
   html += `<td>${fmtMoney(grand2)}</td></tr>`;
   html += '</tbody>';

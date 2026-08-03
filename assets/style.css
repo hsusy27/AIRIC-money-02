@@ -157,7 +157,8 @@ button{ font-family:inherit; }
 .recon-table th:first-child, .recon-table td:first-child{ text-align:left; color:var(--ink-soft); }
 .recon-table thead th{ background:var(--surface-sunken); font-weight:500; color:var(--ink-soft); font-size:12px; }
 .recon-table td{ font-family:var(--font-mono); }
-.recon-table tr:last-child td{ border-bottom:none; font-weight:600; background:var(--surface-sunken); }
+.recon-table tr.total-row td{ border-bottom:none; font-weight:600; background:var(--surface-sunken); }
+.recon-table tr:not(.total-row) + tr.total-row td{ border-top:2px solid var(--line-strong); }
 .fund-chip{ display:inline-flex; align-items:center; gap:5px; font-family:var(--font-body); font-size:12px; }
 .fund-chip .dot{ width:7px; height:7px; border-radius:50%; }
 .fund-hospital .dot{ background:var(--hospital); }
