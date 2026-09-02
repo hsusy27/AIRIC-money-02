@@ -12,12 +12,12 @@ const DIRECTOR_CATEGORIES = [
   { key: 'passthrough',      label: '非主任開銷，另外申請給中心的費用', code: null, note: '主任代為申請／代領，非個人墊付' },
   { key: 'code_114221T5',    label: '計畫費用', code: '114221T5' },
   { key: 'code_114221T7',    label: '計畫費用', code: '114221T7' },   
-  { key: 'code_113221T5',    label: '計畫費用', code: '113221T5' },
-  { key: 'code_113221T3',    label: '計畫費用', code: '113221T3' },
   { key: 'code_11442614',    label: '計畫費用', code: '11442614' },
   { key: 'code_11442501',    label: '計畫費用', code: '11442501' }, 
   { key: 'code_114221CM',    label: '計畫費用', code: '114221CM' },
   { key: 'code_114221EP',    label: '計畫費用', code: '114221EP' },
+  { key: 'code_113221T5',    label: '計畫費用', code: '113221T5' },
+  { key: 'code_113221T3',    label: '計畫費用', code: '113221T3' },
 ];
 
 const FUND_SOURCES = [
