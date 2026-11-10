@@ -203,10 +203,14 @@ function renderReconTable(){
   FUND_SOURCES.forEach(f=>{ const v = recon.owedNew[f.key]||0; grand1+=v; html+=`<td>${fmtMoney(v)}</td>`; });
   html += `<td>${fmtMoney(grand1)}</td></tr>`;
   // 合計列 2：本月主任支出總額（需歸還 + 自行吸收，代表主任這個月實際自己出了多少錢）
-  let grand2 = 0;
-  html += `<tr class="total-row"><td>本月主任支出總額（含自行吸收）</td>`;
-  FUND_SOURCES.forEach(f=>{ const v = (recon.owedNew[f.key]||0) + (recon.waived[f.key]||0); grand2+=v; html+=`<td>${fmtMoney(v)}</td>`; });
-  html += `<td>${fmtMoney(grand2)}</td></tr>`;
+  // 只有當月有「主任自行吸收」的款項時才顯示，否則會跟上一列數字完全相同
+  const waivedTotal = FUND_SOURCES.reduce((s,f)=> s + (recon.waived[f.key]||0), 0);
+  if(waivedTotal > 0){
+    let grand2 = 0;
+    html += `<tr class="total-row"><td>本月主任支出總額（含自行吸收）</td>`;
+    FUND_SOURCES.forEach(f=>{ const v = (recon.owedNew[f.key]||0) + (recon.waived[f.key]||0); grand2+=v; html+=`<td>${fmtMoney(v)}</td>`; });
+    html += `<td>${fmtMoney(grand2)}</td></tr>`;
+  }
   html += '</tbody>';
   document.getElementById('reconTable').innerHTML = html;
 }
