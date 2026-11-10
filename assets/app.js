@@ -165,11 +165,27 @@ function directorReconForMonth(month){
       }
     }
     // 沖帳：不論哪個月產生，只要「這個月」被標記已入帳，就算這個月的入帳金額
+    // 入帳金額優先採用「收入」欄（實際撥回的錢），沒填才用「支出」欄
     if(pt==='reimbursable' && e.settled && e.settledMonth === month){
-      rows.settledThisMonth[e.fundSource] = (rows.settledThisMonth[e.fundSource]||0) + amt;
+      rows.settledThisMonth[e.fundSource] = (rows.settledThisMonth[e.fundSource]||0) + directorReceivedAmount(e);
     }
   });
   return rows;
+}
+
+/* 實際入帳給主任的金額：有填「收入」就用收入（實際撥回的錢，可能比原本預估的支出多或少），
+   沒填收入才用支出欄的金額 */
+function directorReceivedAmount(e){
+  const inc = Number(e.income)||0;
+  if(inc>0) return inc;
+  return directorEntryAmount(e);
+}
+
+/* 這個月入帳給主任的明細（不論墊款發生在哪個月） */
+function directorReceivedListForMonth(month){
+  return getEntries('director')
+    .filter(e=> paymentTypeOf(e)==='reimbursable' && e.settled && e.settledMonth === month)
+    .sort((a,b)=> (a.month||'').localeCompare(b.month||''));
 }
 
 function directorOutstandingUpTo(month){
