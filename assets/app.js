@@ -13,6 +13,7 @@ const DIRECTOR_CATEGORIES = [
   { key: 'code_114221T5',    label: '計畫費用', code: '114221T5' },
   { key: 'code_114221T7',    label: '計畫費用', code: '114221T7' }, 
   { key: 'code_11542502',    label: '計畫費用', code: '11542502' },
+  { key: 'code_11242507',    label: '計畫費用', code: '11242507' },
   { key: 'code_11442614',    label: '計畫費用', code: '11442614' },
   { key: 'code_11442501',    label: '計畫費用', code: '11442501' }, 
   { key: 'code_114221CM',    label: '計畫費用', code: '114221CM' },
